@@ -1,0 +1,135 @@
+#!/usr/local/Cellar/python@3.10/3.10.1/bin/python3
+import fire
+import json
+import re
+from wulkan import wulkanClient
+from colorama import Fore, Back, Style
+from os import getenv
+from os import name, mkdir
+from os.path import exists
+from os import system
+if name == "posix" or name=='darwin':
+    configpath = getenv('HOME')+'/.config/wulkan.conf'
+    config = json.load(open(configpath))
+    try:
+        sesjapath = configpath.replace('wulkan', 'wulkansession')
+        sesja = json.load(open(sesjapath))
+    except:
+        sesja = {"minuta": 100, 'hour': 100}
+else:
+    if not exists(getenv('HOMEPATH')+'/.config'):
+        mkdir(getenv('HOMEPATH')+'/.config')
+    configpath = getenv('HOMEPATH')+'\.config\wulkan.conf'
+    config = json.load(configpath)
+    try:
+        sesjapath = config.replace('wulkan', 'wulkansession')
+        sesja = json.load(sesjapath)
+    except:
+        sesja = {"minuta": 100, 'hour': 100}
+# print(getenv('HOMEPATH')+'/.config/wulkansession.conf', 'w')
+from datetime import datetime
+username = config['username']
+password = config['password']
+
+def kolorOceny(ocena):
+    match ocena:
+        case '5' | '-5':
+            return Fore.GREEN
+        case '4' | '4+' | '4-':
+            return Fore.BLUE
+        case '3' | '3+' | '3-':
+            return Fore.YELLOW
+        case '2' | '2+' | '2-':
+            return Fore.MAGENTA
+        case '1' | '1+':
+            return Fore.RED
+        case _:
+            return('')
+if sesja is None or int(sesja['minuta'])-datetime.now().minute >= 30 or not int(sesja['hour']) == datetime.now().hour:
+    print('Generowanie nowej sesji...')
+    user = wulkanClient(username, password)
+    wulkanClient.activate(user)
+    with open(sesjapath, 'w') as outfile:
+        data = {
+            'cookies': user.cookies,
+            'permissions': user.permissions,
+            'okresID': user.okresID,
+            'minuta': datetime.now().minute,
+            'hour': datetime.now().hour
+        }
+        json.dump(data, outfile)
+else:
+    print('sesja została odczytana z cache')
+    user = wulkanClient(username, password)
+    user.load(dict(sesja['permissions']), dict(sesja['cookies']), sesja['okresID'])
+def ogloszenia():
+    for i in user.getOgloszenia()['data'][0]['Zawartosc']:
+        print()
+        print(i['Nazwa'])
+        print(' ',i['Dane'].replace('<br />', '\n  '))
+        pass
+def oceny(przedmiot = None):
+    """
+        Pokazuje liste ocen
+    """
+    oceny = user.getOceny()
+    for ocena in oceny['data']['Oceny']:
+        if not ocena['OcenyCzastkowe'] == []:
+            if przedmiot == None or przedmiot.lower() in ocena['Przedmiot'].lower():
+                print(
+                    Back.WHITE + Fore.BLACK + ocena['Przedmiot'], 
+                    Style.RESET_ALL, 
+                    " - ", 
+                    "Średnia:",ocena["Srednia"], 
+                    "Ocena proponowana:", 
+                    ocena['ProponowanaOcenaRoczna'],
+                    end = ''
+                )
+                if not ocena['OcenaRoczna'] == '':
+                    print(" gOcena końcowa:",ocena['OcenaRoczna'], end = '\n')
+                print('\n Oceny Czastkowe: ')
+                for ocenaCzastkowa in ocena['OcenyCzastkowe']:
+                    print("  ",kolorOceny(str(ocenaCzastkowa['Wpis'])),ocenaCzastkowa['Wpis'], ' - ' , ocenaCzastkowa['NazwaKolumny'])
+def sprawdziany():
+    """
+        Pokazuje nadchodzące sprawdziany
+    """
+    sprawdziany = user.getSprawdziany()
+    for i in sprawdziany['data']:
+        for j in i['SprawdzianyGroupedByDayList']:
+            if not j['Sprawdziany'] == []:
+                print(j['Data'])
+                for y in j['Sprawdziany']:
+                    print(' ',y['Nazwa'], '-' ,y['Opis'])
+                # print(j['Nazwa'], ' - ', j['Opis'])
+def plan():
+    """
+        Pokazuje plan lekcji na dzień dzisiejszy i jutrzejszy
+    """
+    plan = user.getProstyPlanLekcji()
+    print("lekcje na dziś:")
+    for o in plan:
+        if not "Jutro" in o:
+            print(" ", o)
+        else:
+            print(o)
+def osoby(klasa=None):
+    listafile = ''
+    try:
+        listafile = json.load(open(sesjapath.replace('session', 'lista'), 'r'))
+    except:
+        listafile = open(sesjapath.replace('session', 'lista'), 'w')
+        ludzie = user.getListaOsob()
+        json.dump(ludzie, listafile)
+        listafile = ludzie
+    for i in listafile:
+        if klasa is None or str(str(klasa).upper()) in i['Name'].upper():
+            print(i['Name'])
+if __name__ == '__main__':
+    fire.Fire({
+        'plan': plan,
+        'oceny': oceny,
+        'sprawdziany': sprawdziany,
+        'osoby': osoby,
+        'ogloszenia': ogloszenia
+    })
