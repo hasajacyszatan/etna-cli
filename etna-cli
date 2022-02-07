@@ -30,10 +30,10 @@ else:
 from datetime import datetime
 username = config['username']
 password = config['password']
-
+powiat = config['powiat']
 def kolorOceny(ocena):
     match ocena:
-        case '5' | '-5':
+        case '5' | '5-' | '+'| '5+':
             return Fore.GREEN
         case '4' | '4+' | '4-':
             return Fore.BLUE
@@ -47,7 +47,7 @@ def kolorOceny(ocena):
             return('')
 if sesja is None or int(sesja['minuta'])-datetime.now().minute >= 30 or not int(sesja['hour']) == datetime.now().hour:
     print('Generowanie nowej sesji...')
-    user = wulkanClient(username, password)
+    user = wulkanClient(username, password, powiat)
     wulkanClient.activate(user)
     with open(sesjapath, 'w') as outfile:
         data = {
@@ -60,7 +60,7 @@ if sesja is None or int(sesja['minuta'])-datetime.now().minute >= 30 or not int(
         json.dump(data, outfile)
 else:
     print('sesja została odczytana z cache')
-    user = wulkanClient(username, password)
+    user = wulkanClient(username, password,  powiat)
     user.load(dict(sesja['permissions']), dict(sesja['cookies']), sesja['okresID'])
 def ogloszenia():
     for i in user.getOgloszenia()['data'][0]['Zawartosc']:

@@ -6,7 +6,8 @@ from datetime import date
 from math import floor, ceil
 import re
 class wulkanClient:
-  def __init__(self, loginName, Password):
+  def __init__(self, loginName, Password, powiat):
+    self.powiat = powiat
     # dane logowania
     self.login = {
       'LoginName': loginName,
@@ -23,11 +24,13 @@ class wulkanClient:
     self.cookies = cookies
     self.permissions = permissions
     self.okresID = okresID
+  def req(self, url, data = {}):
+    return requests.post(url, cookies=self.cookies, headers=self.jsonHeaders, data=data)
   def activate(self):
     a_session = requests.Session()
     # Zwraca pliki cookie ASP.NET_SessionId, ARR_cufs.vulcan.net.pl, ARR_3S_ARR_CufsEOL, UonetPlus_SLACookie, ARR_3S_ARR_EFEB
     # nie wystarczą one do zalogowania się do dziennika ale są wymaga żeby zdobyć następne
-    response = a_session.post('https://cufs.vulcan.net.pl/powiatbochenski/Account/LogOn?ReturnUrl=%2Fpowiatbochenski%2FFS%2FLS%3Fwa%3Dwsignin1.0%26wtrealm%3Dhttps%253a%252f%252fuonetplus.vulcan.net.pl%252fpowiatbochenski%252fLoginEndpoint.aspx%26wctx%3Dhttps%253a%252f%252fuonetplus.vulcan.net.pl%252fpowiatbochenski%252fLoginEndpoint.aspx', data=self.login, cookies=self.cookies)
+    response = a_session.post('https://cufs.vulcan.net.pl/'+self.powiat+'/Account/LogOn?ReturnUrl=%2F'+self.powiat+'%2FFS%2FLS%3Fwa%3Dwsignin1.0%26wtrealm%3Dhttps%253a%252f%252fuonetplus.vulcan.net.pl%252f'+self.powiat+'%252fLoginEndpoint.aspx%26wctx%3Dhttps%253a%252f%252fuonetplus.vulcan.net.pl%252f'+self.powiat+'%252fLoginEndpoint.aspx', data=self.login, cookies=self.cookies)
     self.cookies.update(response.cookies.get_dict())
 
     # zwraca parametry requesta potrzebne do zalogowania 
@@ -38,15 +41,15 @@ class wulkanClient:
     
     # zwraca ARR_3S_ARR_EFEB, UonetPlus_SLACookie, NET_SessionId, Vulcan.CUFS.WebFrontEndCookie, FederatedApplication9991aa22
     # z użyciem tych plików mozna sie już zalogować z sukcesem do dziennika
-    a_session.post('https://uonetplus.vulcan.net.pl/powiatbochenski/LoginEndpoint.aspx', cookies=self.cookies, data=data)
+    a_session.post('https://uonetplus.vulcan.net.pl/'+self.powiat+'/LoginEndpoint.aspx', cookies=self.cookies, data=data)
     self.cookies.update(a_session.cookies.get_dict())
-    permissions = a_session.get('https://uonetplus.vulcan.net.pl/powiatbochenski/Start.mvc/Index', cookies=self.cookies, data=data).text
+    permissions = a_session.get('https://uonetplus.vulcan.net.pl/'+self.powiat+'/Start.mvc/Index', cookies=self.cookies, data=data).text
     for i in permissions.split('\n'):
       if " permissions: '" in i:
         permissions = i.replace("',", '').replace("       permissions: '","")
     self.permissions = {"permissions": permissions}
     # dodaje idBiezacyUczen i idBiezacy dziennik i inne esze mesze
-    uczenData = requests.post('https://uonetplus-uczen.vulcan.net.pl/powiatbochenski/001003/UczenDziennik.mvc/Get', headers=self.jsonHeaders, cookies=self.cookies).json()["data"][0]
+    uczenData = requests.post('https://uonetplus-uczen.vulcan.net.pl/'+self.powiat+'/001003/UczenDziennik.mvc/Get', headers=self.jsonHeaders, cookies=self.cookies).json()["data"][0]
     uczenDict = {
       'idBiezacyUczen': str(uczenData['IdUczen']),
       'idBiezacyDziennik': str(uczenData['IdDziennik']),
@@ -65,40 +68,38 @@ class wulkanClient:
       data = date.today()
 
     data = '{"data":"'+data.strftime("%Y-%m-%dT00:00:00")+'","rokSzkolny":'+data.strftime("%Y")+'}'
-    return requests.post('https://uonetplus-uczen.vulcan.net.pl/powiatbochenski/001003/Sprawdziany.mvc/Get', cookies=self.cookies, data=data, headers=self.jsonHeaders).json()
+    return self.req('https://uonetplus-uczen.vulcan.net.pl/'+self.powiat+'/001003/Sprawdziany.mvc/Get', data=data).json()
   def getPlanLekcji(self, data=None):
     try:
       data.day
     except:
       data = date.today()
     data = '{"data":"'+data.strftime("%Y-%m-%dT00:00:00")+'","rokSzkolny":'+data.strftime("%Y")+'}'
-    response = requests.post('https://uonetplus-uczen.vulcan.net.pl/powiatbochenski/001003/PlanZajec.mvc/Get', headers=self.jsonHeaders, cookies=self.cookies, data=data).json()
-    return response
+    return self.req('https://uonetplus-uczen.vulcan.net.pl/'+self.powiat+'/001003/Sprawdziany.mvc/Get', data=data).json()
 
   def getPrzedmioty(self):
-    return requests.post('https://uonetplus-uczen.vulcan.net.pl/powiatbochenski/001003/LekcjeZrealizowane.mvc/GetPrzedmioty', headers=self.jsonHeaders, cookies=self.cookies).json()
+    return self.req('https://uonetplus-uczen.vulcan.net.pl/'+self.powiat+'/001003/LekcjeZrealizowane.mvc/GetPrzedmioty').json()
   
   def getOceny(self):
     data = '{"okres":'+str(self.okresID)+'}'
-    return requests.post('https://uonetplus-uczen.vulcan.net.pl/powiatbochenski/001003/Oceny.mvc/Get', cookies=self.cookies, data=data, headers=self.jsonHeaders).json()
+    return self.req('https://uonetplus-uczen.vulcan.net.pl/'+self.powiat+'/001003/Oceny.mvc/Get', data=data).json()
   
   def GetDaneUcznia(self):
-    return requests.post('https://uonetplus-uczen.vulcan.net.pl/powiatbochenski/001003/Uczen.mvc/Get', headers=self.jsonHeaders, cookies=self.cookies).json()
+    return self.req('https://uonetplus-uczen.vulcan.net.pl/'+self.powiat+'/001003/Uczen.mvc/Get').json()
   
   def GetUwagiIOsiagniecia(self):
-    return requests.post('https://uonetplus-uczen.vulcan.net.pl/powiatbochenski/001003/UwagiIOsiagniecia.mvc/Get', headers=self.jsonHeaders, cookies=self.cookies).json()
+    return self.req('https://uonetplus-uczen.vulcan.net.pl/'+self.powiat+'/001003/UwagiIOsiagniecia.mvc/Get').json()
   
   def getZebrania(self):
-    return requests.post('https://uonetplus-uczen.vulcan.net.pl/powiatbochenski/001003/Zebrania.mvc/Get', headers=self.jsonHeaders, cookies=self.cookies).json()
+    return self.req('https://uonetplus-uczen.vulcan.net.pl/'+self.powiat+'/001003/Zebrania.mvc/Get').json()
   def getOgloszenia(self):
-    # print(self.permissions)
-    return requests.post('https://uonetplus.vulcan.net.pl/powiatbochenski/Start.mvc/GetStudentDirectorInformations', headers=self.jsonHeaders, cookies=self.cookies, data=self.permissions).json()
+    return self.req('https://uonetplus.vulcan.net.pl/'+self.powiat+'/Start.mvc/GetStudentDirectorInformations', data=self.permissions).json()
   def getSzczesliwyNumerek(self):
-    return requests.post('https://uonetplus.vulcan.net.pl/powiatbochenski/Start.mvc/GetKidsLuckyNumbers', cookies=self.cookies, data=self.permissions).json()
+    return self.req('https://uonetplus.vulcan.net.pl/'+self.powiat+'/Start.mvc/GetKidsLuckyNumbers', data=self.permissions).json()
   def getOstatnieOceny(self):
-    return requests.post('https://uonetplus.vulcan.net.pl/powiatbochenski/Start.mvc/GetLastNotes', cookies=self.cookies, data=self.permissions).json()
+    return self.req('https://uonetplus.vulcan.net.pl/'+self.powiat+'/Start.mvc/GetLastNotes', data=self.permissions).json()
   def getProstyPlanLekcji(self):
-    kidsLessonPlan = requests.post('https://uonetplus.vulcan.net.pl/powiatbochenski/Start.mvc/GetKidsLessonPlan', cookies=self.cookies, data=self.permissions).json()
+    kidsLessonPlan = self.req('https://uonetplus.vulcan.net.pl/'+self.powiat+'/Start.mvc/GetKidsLessonPlan', data=self.permissions).json()
     lekcje = []
     lekcjefinalne = []
     for i in kidsLessonPlan['data'][0]['Zawartosc']:
@@ -120,7 +121,7 @@ class wulkanClient:
     ('start', '0'),
     ('limit', limit),
     )
-    response = requests.get('https://uonetplus-uzytkownik.vulcan.net.pl/powiatbochenski/Wiadomosc.mvc/GetInboxMessages', params=params, cookies=self.cookies).json()
+    response = requests.get('https://uonetplus-uzytkownik.vulcan.net.pl/'+self.powiat+'/Wiadomosc.mvc/GetInboxMessages', params=params, cookies=self.cookies).json()
     return response
   # Nie działa cholera wie czemu
   def getWiadomosc(self, messageId):
@@ -146,10 +147,10 @@ class wulkanClient:
         'sec-fetch-site': 'same-origin',
         'sec-fetch-mode': 'cors',
         'sec-fetch-dest': 'empty',
-        'referer': 'https://uonetplus-uzytkownik.vulcan.net.pl/powiatbochenski/',
+        'referer': 'https://uonetplus-uzytkownik.vulcan.net.pl/'+self.powiat+'/',
         'accept-language': 'pl',
     }
-    response = requests.post('https://uonetplus-uzytkownik.vulcan.net.pl/powiatbochenski/Wiadomosc.mvc/GetInboxMessageDetails', cookies=self.cookies.update(cookies), data=data, headers=headers)
+    response = requests.post('https://uonetplus-uzytkownik.vulcan.net.pl/'+self.powiat+'/Wiadomosc.mvc/GetInboxMessageDetails', cookies=self.cookies.update(cookies), data=data, headers=headers)
     return response
   def getPrzedmiotyZrealizowane(self ,dataOd=date.today().replace(day=date.today().day-1), dataDo=date.today()):
     # data = '{"poczatek":"2021-12-17T17:13:58","koniec":"2022-01-16T17:13:58","idPrzedmiot":-1}'
@@ -157,10 +158,10 @@ class wulkanClient:
       'poczatek': dataOd.strftime("%Y-%m-%dT00:00:00"),
       'koniec': dataDo.strftime("%Y-%m-%dT00:00:00")
     }
-    response = requests.post('https://uonetplus-uczen.vulcan.net.pl/powiatbochenski/001003/LekcjeZrealizowane.mvc/GetZrealizowane', cookies=self.cookies, data=data)
+    response = self.req('https://uonetplus-uczen.vulcan.net.pl/'+self.powiat+'/001003/LekcjeZrealizowane.mvc/GetZrealizowane', data=data)
     return response.json()
   def getSzkolaINauczyciele(self):
-    response = requests.post('https://uonetplus-uczen.vulcan.net.pl/powiatbochenski/001003/SzkolaINauczyciele.mvc/Get', cookies=self.cookies)
+    response = self.req('https://uonetplus-uczen.vulcan.net.pl/'+self.powiat+'/001003/SzkolaINauczyciele.mvc/Get')
     return response
   def getListaOsob(self):
     if date.today().month > 6:
