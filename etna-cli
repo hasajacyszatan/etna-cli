@@ -1,36 +1,127 @@
 #!/usr/local/Cellar/python@3.10/3.10.1/bin/python3
 import fire
 import json
-import re
-from wulkan import wulkanClient
+
+from requests import session
+from wulkan import WulkanClient
 from colorama import Fore, Back, Style
 from os import getenv
 from os import name, mkdir
+from appdirs import *
 from os.path import exists
-from os import system
-if name == "posix" or name=='darwin':
-    configpath = getenv('HOME')+'/.config/wulkan.conf'
-    config = json.load(open(configpath))
-    try:
-        sesjapath = configpath.replace('wulkan', 'wulkansession')
-        sesja = json.load(open(sesjapath))
-    except:
-        sesja = {"minuta": 100, 'hour': 100}
-else:
-    if not exists(getenv('HOMEPATH')+'/.config'):
-        mkdir(getenv('HOMEPATH')+'/.config')
-    configpath = getenv('HOMEPATH')+'\.config\wulkan.conf'
-    config = json.load(configpath)
-    try:
-        sesjapath = config.replace('wulkan', 'wulkansession')
-        sesja = json.load(sesjapath)
-    except:
-        sesja = {"minuta": 100, 'hour': 100}
-# print(getenv('HOMEPATH')+'/.config/wulkansession.conf', 'w')
 from datetime import datetime
-username = config['username']
-password = config['password']
-powiat = config['powiat']
+
+configDir = user_data_dir("hasajacyszatan", "etna-cli")
+
+# if name == "posix" or name=='darwin':
+#     configpath = getenv('HOME')+'/.config/wulkan.conf'
+#     config = json.load(open(configpath))
+#     sesjapath = configpath.replace('wulkan', 'wulkansession')
+#     try:
+#         sesja = json.load(open(sesjapath))
+#     except:
+#         sesja = {"minuta": 100, 'hour': 100}
+# else:
+#     configpath = getenv('HOMEPATH')+'\.config\wulkan.conf'
+#     config = json.load(open(configpath, "r+"))
+#     sesjapath = configpath.replace('wulkan', 'wulkansession')
+#     try:
+#         sesja = json.load(sesjapath)
+#     except:
+#         sesja = {"minuta": 100, 'hour': 100}
+# # print(getenv('HOMEPATH')+'/.config/wulkansession.conf', 'w')
+# from datetime import datetime
+# username = config['username']
+# password = config['password']
+
+# if sesja is None or int(sesja['minuta'])-datetime.now().minute >= 30 or not int(sesja['hour']) == datetime.now().hour:
+#     print('Generowanie nowej sesji...')
+#     user = WulkanClient(username, password)
+#     WulkanClient.activate(user)
+#     with open(sesjapath, 'w') as outfile:
+#         data = {
+#             'cookies': user.cookies,
+#             'permissions': user.permissions,
+#             'okresID': user.okresID,
+#             'powiat': user.powiat,
+#             'minuta': datetime.now().minute,
+#             'hour': datetime.now().hour
+#         }
+#         json.dump(data, outfile)
+# else:
+#     print('sesja została odczytana z cache')
+#     user = WulkanClient(username, password)
+#     user.load(dict(sesja['permissions']), dict(sesja['cookies']), sesja['okresID'], sesja["powiat"])
+def loadconfig():
+    global user
+    if exists(configDir+"/config.json"):
+        paths = {
+            "config": configDir+"/config.json",
+            "session": configDir+"/session.json"
+        }
+        files = {
+            "config": json.load(open(paths['config'], 'r')),
+            "session": json.load(open(paths['session'], 'r+'))
+        }
+        if int(files['session']['minute']) - datetime.now().minute >= 30 or not int(files['session']['hour']) == datetime.now().hour:
+            user = WulkanClient(files['config']['username'], files['config']['password'])
+            WulkanClient.activate(user)
+            with open(paths['session'], 'w') as outfile:
+                data = {
+                    'cookies': user.cookies,
+                    'permissions': user.permissions,
+                    'okresID': user.okresID,
+                    'powiat': user.powiat,
+                    'minute': datetime.now().minute,
+                    'hour': datetime.now().hour
+                }
+                json.dump(data, outfile)
+        else:
+            user = WulkanClient(files['config']['username'], files['config']['password'])
+            user.load(dict(files['session']['permissions']), dict(files['session']['cookies']), files['session']['okresID'], files['session']["powiat"])
+    else:
+        try:
+            if name == "nt":
+                # C:\Users\Kamil\AppData\Local\etna-cli\hasajacyszatan
+                mkdir(configDir.replace("\hasajacyszatan", ''))
+            mkdir(configDir)
+        except:
+            None
+        username = input("Podaj emaila: ")
+        password = input("Podaj hasło: ")
+        paths = {
+            "config": configDir+"/config.json",
+            "session": configDir+"/session.json"
+        }
+        user = WulkanClient(username, password)
+        WulkanClient.activate(user)
+        with open(paths['session'], 'w') as outfile:
+            data = {
+                'cookies': user.cookies,
+                'permissions': user.permissions,
+                'okresID': user.okresID,
+                'powiat': user.powiat,
+                'minute': datetime.now().minute,
+                'hour': datetime.now().hour
+            }
+            json.dump(data, outfile)
+        with open(paths['config'], 'w') as outfile:
+            data = {
+                'username': username,
+                'password': password
+            }
+            json.dump(data, outfile)
+        files = {
+            "config": json.load(open(paths['config'], 'r')),
+            "session": json.load(open(paths['session'], 'r+'))
+        }
+loadconfig()
+def ogloszenia():
+    for i in user.getOgloszenia()['data'][0]['Zawartosc']:
+        print()
+        print(i['Nazwa'])
+        print(' ',i['Dane'].replace('<br />', '\n  '))
+        pass
 def kolorOceny(ocena):
     match ocena:
         case '5' | '5-' | '+'| '5+':
@@ -45,29 +136,6 @@ def kolorOceny(ocena):
             return Fore.RED
         case _:
             return('')
-if sesja is None or int(sesja['minuta'])-datetime.now().minute >= 30 or not int(sesja['hour']) == datetime.now().hour:
-    print('Generowanie nowej sesji...')
-    user = wulkanClient(username, password, powiat)
-    wulkanClient.activate(user)
-    with open(sesjapath, 'w') as outfile:
-        data = {
-            'cookies': user.cookies,
-            'permissions': user.permissions,
-            'okresID': user.okresID,
-            'minuta': datetime.now().minute,
-            'hour': datetime.now().hour
-        }
-        json.dump(data, outfile)
-else:
-    print('sesja została odczytana z cache')
-    user = wulkanClient(username, password,  powiat)
-    user.load(dict(sesja['permissions']), dict(sesja['cookies']), sesja['okresID'])
-def ogloszenia():
-    for i in user.getOgloszenia()['data'][0]['Zawartosc']:
-        print()
-        print(i['Nazwa'])
-        print(' ',i['Dane'].replace('<br />', '\n  '))
-        pass
 def oceny(przedmiot = None):
     """
         Pokazuje liste ocen
