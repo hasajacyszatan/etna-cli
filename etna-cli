@@ -12,46 +12,6 @@ from os.path import exists
 from datetime import datetime
 
 configDir = user_data_dir("hasajacyszatan", "etna-cli")
-
-# if name == "posix" or name=='darwin':
-#     configpath = getenv('HOME')+'/.config/wulkan.conf'
-#     config = json.load(open(configpath))
-#     sesjapath = configpath.replace('wulkan', 'wulkansession')
-#     try:
-#         sesja = json.load(open(sesjapath))
-#     except:
-#         sesja = {"minuta": 100, 'hour': 100}
-# else:
-#     configpath = getenv('HOMEPATH')+'\.config\wulkan.conf'
-#     config = json.load(open(configpath, "r+"))
-#     sesjapath = configpath.replace('wulkan', 'wulkansession')
-#     try:
-#         sesja = json.load(sesjapath)
-#     except:
-#         sesja = {"minuta": 100, 'hour': 100}
-# # print(getenv('HOMEPATH')+'/.config/wulkansession.conf', 'w')
-# from datetime import datetime
-# username = config['username']
-# password = config['password']
-
-# if sesja is None or int(sesja['minuta'])-datetime.now().minute >= 30 or not int(sesja['hour']) == datetime.now().hour:
-#     print('Generowanie nowej sesji...')
-#     user = WulkanClient(username, password)
-#     WulkanClient.activate(user)
-#     with open(sesjapath, 'w') as outfile:
-#         data = {
-#             'cookies': user.cookies,
-#             'permissions': user.permissions,
-#             'okresID': user.okresID,
-#             'powiat': user.powiat,
-#             'minuta': datetime.now().minute,
-#             'hour': datetime.now().hour
-#         }
-#         json.dump(data, outfile)
-# else:
-#     print('sesja została odczytana z cache')
-#     user = WulkanClient(username, password)
-#     user.load(dict(sesja['permissions']), dict(sesja['cookies']), sesja['okresID'], sesja["powiat"])
 def loadconfig():
     global user
     if exists(configDir+"/config.json"):
@@ -154,7 +114,7 @@ def oceny(przedmiot = None):
                     end = ''
                 )
                 if not ocena['OcenaRoczna'] == '':
-                    print(" gOcena końcowa:",ocena['OcenaRoczna'], end = '\n')
+                    print(" ocena końcowa:",ocena['OcenaRoczna'], end = '\n')
                 print('\n Oceny Czastkowe: ')
                 for ocenaCzastkowa in ocena['OcenyCzastkowe']:
                     print("  ",kolorOceny(str(ocenaCzastkowa['Wpis'])),ocenaCzastkowa['Wpis'], ' - ' , ocenaCzastkowa['NazwaKolumny'])
