@@ -41,41 +41,43 @@ class WulkanClient:
     powiaty = root.findall(".//*[@AttributeName='UserInstance']")[0]
     for i in powiaty:
       powiat = i.text
-      # Zwraca pliki cookie ASP.NET_SessionId, ARR_cufs.vulcan.net.pl, ARR_3S_ARR_CufsEOL, UonetPlus_SLACookie, ARR_3S_ARR_EFEB
-      # nie wystarczą one do zalogowania się do dziennika ale są wymaga żeby zdobyć następne
-      response = a_session.post('https://cufs.vulcan.net.pl/'+powiat+'/Account/LogOn?ReturnUrl=%2F'+powiat+'%2FFS%2FLS%3Fwa%3Dwsignin1.0%26wtrealm%3Dhttps%253a%252f%252fuonetplus.vulcan.net.pl%252f'+powiat+'%252fLoginEndpoint.aspx%26wctx%3Dhttps%253a%252f%252fuonetplus.vulcan.net.pl%252f'+powiat+'%252fLoginEndpoint.aspx', data=self.login, cookies=self.cookies)
-      self.cookies.update(response.cookies.get_dict())
-      # zwraca parametry requesta potrzebne do zalogowania 
-      zupkaZDanych = zupka(response.text, 'html.parser')
-      data = dict()
-      for i in zupkaZDanych.find_all('input', {'type': 'hidden'}):
-        data.update({i.get('name'): i.get('value')})
-      # zwraca ARR_3S_ARR_EFEB, UonetPlus_SLACookie, NET_SessionId, Vulcan.CUFS.WebFrontEndCookie, FederatedApplication9991aa22
-      # z użyciem tych plików mozna sie już zalogować z sukcesem do dziennika
-      resp = a_session.post('https://uonetplus.vulcan.net.pl/'+powiat+'/LoginEndpoint.aspx', cookies=self.cookies, data=data)
-      if "nie został zarejestrowany w bazie szkoły, do której się logujesz" in resp.text:
-        continue
-      else:
-        self.powiat = powiat
-        print(powiat)
-        self.cookies.update(a_session.cookies.get_dict())
-        permissions = a_session.get('https://uonetplus.vulcan.net.pl/'+powiat+'/Start.mvc/Index', cookies=self.cookies, data=data).text
-        for i in permissions.split('\n'):
-          if " permissions: '" in i:
-            permissions = i.replace("',", '').replace("       permissions: '","")
-        self.permissions = {"permissions": permissions}
-        # dodaje idBiezacyUczen i idBiezacy dziennik i inne esze mesze
-        uczenData = requests.post('https://uonetplus-uczen.vulcan.net.pl/'+powiat+'/001003/UczenDziennik.mvc/Get', headers=self.jsonHeaders, cookies=self.cookies).json()["data"][0]
-        uczenDict = {
-          'idBiezacyUczen': str(uczenData['IdUczen']),
-          'idBiezacyDziennik': str(uczenData['IdDziennik']),
-          'idBiezacyDziennikPrzedszkole': str(uczenData['IdPrzedszkoleDziennik']),
-          'idBiezacyDziennikWychowankowie': str(uczenData['IdWychowankowieDziennik'])
-        }
-        for i in uczenData['Okresy']:
-          if i['IsLastOkres']:
-            self.okresID = i['Id']
-        self.cookies.update(uczenDict)
+      if powiat != "Default":
+        # Zwraca pliki cookie ASP.NET_SessionId, ARR_cufs.vulcan.net.pl, ARR_3S_ARR_CufsEOL, UonetPlus_SLACookie, ARR_3S_ARR_EFEB
+        # nie wystarczą one do zalogowania się do dziennika ale są wymaga żeby zdobyć następne
+        response = a_session.post('https://cufs.vulcan.net.pl/'+powiat+'/Account/LogOn?ReturnUrl=%2F'+powiat+'%2FFS%2FLS%3Fwa%3Dwsignin1.0%26wtrealm%3Dhttps%253a%252f%252fuonetplus.vulcan.net.pl%252f'+powiat+'%252fLoginEndpoint.aspx%26wctx%3Dhttps%253a%252f%252fuonetplus.vulcan.net.pl%252f'+powiat+'%252fLoginEndpoint.aspx', data=self.login, cookies=self.cookies)
+        self.cookies.update(response.cookies.get_dict())
+        # zwraca parametry requesta potrzebne do zalogowania 
+        zupkaZDanych = zupka(response.text, 'html.parser')
+        data = dict()
+        for i in zupkaZDanych.find_all('input', {'type': 'hidden'}):
+          data.update({i.get('name'): i.get('value')})
+        # zwraca ARR_3S_ARR_EFEB, UonetPlus_SLACookie, NET_SessionId, Vulcan.CUFS.WebFrontEndCookie, FederatedApplication9991aa22
+        # z użyciem tych plików mozna sie już zalogować z sukcesem do dziennika
+        resp = a_session.post('https://uonetplus.vulcan.net.pl/'+powiat+'/LoginEndpoint.aspx', cookies=self.cookies, data=data)
+        if "Jedyne co musisz zrobić to wpisać właściwy adres." in resp.text:
+          continue
+        else:
+          self.powiat = powiat
+          print(powiat)
+          self.cookies.update(a_session.cookies.get_dict())
+          permissions = a_session.get('https://uonetplus.vulcan.net.pl/'+powiat+'/Start.mvc/Index', cookies=self.cookies, data=data).text
+          for i in permissions.split('\n'):
+            if " permissions: '" in i:
+              permissions = i.replace("',", '').replace("       permissions: '","")
+          self.permissions = {"permissions": permissions}
+          # dodaje idBiezacyUczen i idBiezacy dziennik i inne esze mesze
+          uczenData = requests.post('https://uonetplus-uczen.vulcan.net.pl/'+powiat+'/001003/UczenDziennik.mvc/Get', headers=self.jsonHeaders, cookies=self.cookies).json()["data"][0]
+          uczenDict = {
+            'idBiezacyUczen': str(uczenData['IdUczen']),
+            'idBiezacyDziennik': str(uczenData['IdDziennik']),
+            'idBiezacyDziennikPrzedszkole': str(uczenData['IdPrzedszkoleDziennik']),
+            'idBiezacyDziennikWychowankowie': str(uczenData['IdWychowankowieDziennik'])
+          }
+          for i in uczenData['Okresy']:
+            if i['IsLastOkres']:
+              self.okresID = i['Id']
+          self.cookies.update(uczenDict)
+          break
   # funkcje getSprawdziany oraz getPlanLekcji przyjmują argument data (klasa datetime.date) jeśli go nie ma odczytują najnowsze dane
   def getSprawdziany(self, data=None):
     try:
